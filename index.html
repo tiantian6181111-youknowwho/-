@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -76,7 +77,11 @@ tfoot td{border-top:2px solid #ffc2d1;background:#fff5f8;font-weight:700;color:#
   <div class="list" id="list"></div>
   <div class="sync-hint" id="syncHint"></div>
 </div>
-<div class="footer">只读汇总 · 数据由团长维护</div>
+<div class="footer">
+  <span id="adminStatus"></span>
+  <span id="adminBtn" style="cursor:pointer;color:#ff8fab;text-decoration:underline;display:none;" onclick="promptPassword()">管理员登录</span>
+  <span id="logoutBtn" style="cursor:pointer;color:#ff8fab;text-decoration:underline;display:none;" onclick="logoutAdmin()">[退出管理员]</span>
+</div>
 
 <div class="modal-bg" id="modal">
 <div class="modal">
@@ -126,11 +131,22 @@ const DEFAULT={series:['奇迹梦梦','all梦','祈星','其他'],cars:[
 let SERIES=[],CARS=[],tab='全部',isAdmin=false,loaded=false,editIndex=-1;
 function apply(d){SERIES=d.series.slice();CARS=d.cars.map(c=>({crafts:[],images:[],...c}));}
 apply(DEFAULT);
-isAdmin=!(location.search.includes('view=1')||location.hash.includes('view'));
+// 默认只读模式，管理员需输入密码进入
+isAdmin = sessionStorage.getItem('kc_admin') === 'true';
+// 如果URL带了 ?view=1 参数，强制只读
+if(location.search.includes('view=1')) isAdmin = false;
 
 async function init(){
   try{const r=await fetch(DATA_URL+'?_='+Date.now());if(r.ok){const d=await r.json();if(d&&d.cars){apply(d);loaded=true;}}}catch(e){}
   document.getElementById('syncHint').textContent=loaded?'已加载线上数据':'本地预览模式（上传 data.json 后自动同步）';
+  if(isAdmin){
+    document.getElementById('adminBtn').style.display='none';
+    document.getElementById('logoutBtn').style.display='inline';
+    document.getElementById('adminStatus').textContent='管理员模式已开启';
+  }else{
+    document.getElementById('adminBtn').style.display='inline';
+    document.getElementById('logoutBtn').style.display='none';
+  }
   renderTabs();render();
 }
 
@@ -229,12 +245,28 @@ function saveCar(){
   document.querySelectorAll('#fCrafts .craft-row').forEach(r=>{const ins=r.querySelectorAll('input'),nm=ins[0].value.trim();if(nm)crafts.push({name:nm,qty:+ins[1].value||0,avg:+ins[2].value||0,ship:+ins[3].value||0})});
   const obj={series,name,status:document.getElementById('fStatus').value,factory:document.getElementById('fFactory').value.trim(),mode:document.getElementById('fMode').value,payDate:document.getElementById('fPay').value.trim(),finishDate:document.getElementById('fFinish').value.trim(),spec:document.getElementById('fSpec').value.trim(),images:imgs,moldFee:+document.getElementById('fMold').value||0,artFee:+document.getElementById('fArt').value||0,note:document.getElementById('fNote').value.trim(),crafts};
   if(editIndex>=0){CARS[editIndex]=obj}else{CARS.push(obj)}
-  refreshLocal();closeModal();renderTabs();render();
+  refreshLocal();closeModal();if(isAdmin){
+    document.getElementById('adminBtn').style.display='none';
+    document.getElementById('logoutBtn').style.display='inline';
+    document.getElementById('adminStatus').textContent='管理员模式已开启';
+  }else{
+    document.getElementById('adminBtn').style.display='inline';
+    document.getElementById('logoutBtn').style.display='none';
+  }
+  renderTabs();render();
 }
 
 function delCar(idx){
   if(!confirm('确定删除「'+CARS[idx].name+'」？\n删除后记得导出 JSON 并上传到仓库。')) return;
-  CARS.splice(idx,1);refreshLocal();renderTabs();render();
+  CARS.splice(idx,1);refreshLocal();if(isAdmin){
+    document.getElementById('adminBtn').style.display='none';
+    document.getElementById('logoutBtn').style.display='inline';
+    document.getElementById('adminStatus').textContent='管理员模式已开启';
+  }else{
+    document.getElementById('adminBtn').style.display='inline';
+    document.getElementById('logoutBtn').style.display='none';
+  }
+  renderTabs();render();
 }
 
 function refreshLocal(){localStorage.setItem('kc_draft',JSON.stringify({series:SERIES,cars:CARS}))}
@@ -245,6 +277,28 @@ function exportJSON(){
   alert('已下载 data.json\n拖进 GitHub 仓库覆盖原文件，1分钟后所有人看到更新。');
 }
 document.getElementById('kw').addEventListener('input',render);
+function promptPassword(){
+  const pwd = prompt('请输入管理员密码：');
+  if(pwd === 'ztt0919'){
+    isAdmin = true;
+    sessionStorage.setItem('kc_admin','true');
+    document.getElementById('adminBtn').style.display='none';
+    document.getElementById('logoutBtn').style.display='inline';
+    document.getElementById('adminStatus').textContent='管理员模式已开启';
+    renderTabs();render();
+    alert('管理员登录成功！现在可以添加/编辑/删除车辆了。');
+  }else if(pwd !== null){
+    alert('密码错误，无法进入管理员模式。');
+  }
+}
+function logoutAdmin(){
+  isAdmin = false;
+  sessionStorage.removeItem('kc_admin');
+  document.getElementById('adminBtn').style.display='inline';
+  document.getElementById('logoutBtn').style.display='none';
+  document.getElementById('adminStatus').textContent='';
+  renderTabs();render();
+}
 init();
 </script>
 </body>
